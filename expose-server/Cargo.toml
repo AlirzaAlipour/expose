@@ -1,0 +1,51 @@
+[package]
+name = "expose-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+axum = { version = "0.7", features = ["ws", "macros"] }
+axum-extra = { version = "0.9", features = ["typed-header"] }
+axum-server = { version = "0.8", features = ["tls-rustls"] }
+dashmap = "5"
+expose-common = { path = "../expose-common" }
+futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
+rand = "0.8"
+clap = { version = "4", features = ["derive"] }
+serde.workspace = true
+serde_json = "1"
+thiserror.workspace = true
+tokio.workspace = true
+tokio-stream = "0.1"
+tokio-tungstenite = { version = "0.21", features = ["rustls-tls-webpki-roots"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+tower = { version = "0.4", features = ["util", "timeout", "limit"] }
+tower-http = { version = "0.5", features = ["trace", "cors", "auth"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+toml = "0.8"
+bytes = "1"
+subtle = "2"
+rustls-pemfile = "2"
+governor = "0.6"
+socket2 = "0.5"
+tokio-uring = { version = "0.4", optional = true }
+nix = { version = "0.27", features = ["fs"] }
+sha2 = "0.10"
+hex = "0.4"
+http-body-util = "0.1"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+metrics = "0.21"
+metrics-exporter-prometheus = "0.12"
+
+[features]
+io_uring = ["tokio-uring"]
+
+[dev-dependencies]
+tokio-test = "0.4"
+serial_test = "3"
+mockito = "1"
+hyper = { version = "0.14", features = ["client", "http1", "tcp"] }
+criterion = "0.5"

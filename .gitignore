@@ -1,0 +1,26 @@
+# Build artifacts
+/target
+**/target/
+
+# Cargo/git metadata backups
+**/*.rs.bk
+
+# OS-specific junk
+.DS_Store
+Thumbs.db
+
+# IDE settings
+.vscode/
+.idea/
+
+# Local certificates / secrets
+certs/
+
+# Logs / dumps
+*.log
+
+# Ignore every Markdown file except README.md and TESTING.md
+*.md
+!README.md
+!TESTING.md
+

@@ -1,0 +1,27 @@
+[package]
+name = "expose-common"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "expose_common"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow.workspace = true
+axum = { version = "0.7", features = ["json"] }
+bincode = "1"
+bytes = { version = "1", features = ["serde"] }
+http = "0.2"
+hyper = { version = "0.14", default-features = false, features = ["client", "http1", "tcp"] }
+serde.workspace = true
+serde_json = "1"
+thiserror.workspace = true
+tokio-tungstenite = { version = "0.21", features = ["rustls-tls-webpki-roots"] }
+toml = "0.8"
+uuid.workspace = true
+
+[dev-dependencies]
+tokio-test = "0.4"
+serial_test = "3"
+mockito = "1"
