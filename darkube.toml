@@ -1,5 +1,5 @@
 bind_address = "0.0.0.0:8080"
-domain = "expose.darkube.app"
+domain = "darkube.app"
 routing_mode = "both"
 path_prefix = "/t"
 public_port = 443
