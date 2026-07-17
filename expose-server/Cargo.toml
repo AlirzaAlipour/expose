@@ -32,7 +32,7 @@ rustls-pemfile = "2"
 governor = "0.6"
 socket2 = "0.5"
 tokio-uring = { version = "0.4", optional = true }
-nix = { version = "0.27", features = ["fs"] }
+nix = { version = "0.27", features = ["fs", "zerocopy"] }
 sha2 = "0.10"
 hex = "0.4"
 http-body-util = "0.1"
