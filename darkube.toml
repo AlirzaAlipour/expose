@@ -1,6 +1,6 @@
 bind_address = "0.0.0.0:8080"
 domain = "expose.darkube.app"
-routing_mode = "path"
+routing_mode = "both"
 path_prefix = "/t"
 public_port = 443
 rate_limit_requests_per_minute = 120
