@@ -2,7 +2,9 @@ mod body;
 mod encoder;
 mod host;
 mod limiter;
+pub mod path_router;
 mod response;
+mod rewriter;
 mod streaming;
 
 pub use body::BodyCollector;
@@ -10,11 +12,12 @@ pub use encoder::MessageEncoder;
 pub use host::HostResolver;
 pub use limiter::RequestLimiter;
 pub use response::ResponseBuilder;
+pub use rewriter::{maybe_inject_base_tag, rewrite_response_headers};
 pub use streaming::RequestStreamer;
 
 use crate::error::{ExposeError, Result};
 use crate::metrics::ServerMetrics;
-use crate::server::AppState;
+use crate::server::{path_routing_hint_response, AppState};
 use axum::body::{Body, HttpBody};
 use axum::extract::Extension;
 use axum::http::{header::CONTENT_LENGTH, Request};
@@ -38,7 +41,7 @@ use uuid::Uuid;
         path = tracing::field::Empty,
     )
 )]
-pub async fn proxy_request(
+pub async fn subdomain_proxy_request(
     Extension(state): Extension<Arc<AppState>>,
     request: Request<Body>,
 ) -> Result<Response> {
@@ -47,14 +50,22 @@ pub async fn proxy_request(
 
 pub async fn proxy_with_state(state: Arc<AppState>, request: Request<Body>) -> Result<Response> {
     let span = Span::current();
-    span.record("method", &display(request.method()));
-    span.record("path", &display(request.uri().path()));
+    span.record("method", display(request.method()));
+    span.record("path", display(request.uri().path()));
     debug!("processing proxy request");
     let started = Instant::now();
 
     let resolver = HostResolver::new(&state.config.domain);
-    let subdomain = resolver.resolve(&request)?;
-    span.record("subdomain", &display(&subdomain));
+    let subdomain = match resolver.resolve(&request) {
+        Ok(subdomain) => subdomain,
+        Err(_err @ ExposeError::TunnelNotFound { .. })
+            if state.config.routing_mode.supports_path() =>
+        {
+            return Ok(path_routing_hint_response(&state.config));
+        }
+        Err(err) => return Err(err),
+    };
+    span.record("subdomain", display(&subdomain));
 
     let tunnel = state
         .manager
@@ -68,7 +79,7 @@ pub async fn proxy_with_state(state: Arc<AppState>, request: Request<Body>) -> R
 
     let result = async {
         let request_id = Uuid::new_v4();
-        span.record("request_id", &display(&request_id));
+        span.record("request_id", display(&request_id));
         let (parts, body) = request.into_parts();
         let content_length = parts
             .headers

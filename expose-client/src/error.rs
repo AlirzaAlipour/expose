@@ -1,4 +1,4 @@
-//! Client error aliases built on top of the shared [`ExposeError`].
+//! Client error aliases built on top of the shared [`expose_common::error::ExposeError`].
 
 use std::io::{Error, ErrorKind};
 

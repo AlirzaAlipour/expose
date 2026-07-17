@@ -1,9 +1,11 @@
-bind_address = "0.0.0.0:6200"
-domain = "dev.localhost"
-public_port = 6200
+bind_address = "0.0.0.0:8080"
+domain = "expose.darkube.app"
+routing_mode = "path"
+path_prefix = "/t"
+public_port = 443
 rate_limit_requests_per_minute = 120
 rate_limit_burst_size = 20
-api_keys = ["local-dev-key-local-dev-key"]
+api_keys = ["darkube-demo-key-change-me"]
 request_body_limit_bytes = 1048576
 request_timeout_secs = 15
 
@@ -16,8 +18,8 @@ chunk_size_bytes = 65536
 max_body_bytes = 104857600
 
 [metrics]
-enabled = true
-bind_address = "0.0.0.0:9900"
+enabled = false
+bind_address = "127.0.0.1:9900"
 
 [tcp_forward]
 bind_host = "0.0.0.0"
@@ -29,12 +31,12 @@ sweep_interval_ms = 500
 default_timeout_secs = 15
 
 [limits]
-max_tunnels = 32
-max_tunnels_per_key = 0
+max_tunnels = 64
+max_tunnels_per_key = 4
 max_pending_requests = 1000
 
 [admin]
-token = "test-admin-token-1234567890"
+token = "darkube-admin-token-change-me"
 insecure_admin = false
 rate_limit_per_minute = 60
 

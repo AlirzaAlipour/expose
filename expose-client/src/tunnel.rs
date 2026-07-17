@@ -91,31 +91,111 @@ impl ReconnectBackoff {
 }
 
 pub(crate) fn print_tunnel_banner(response: &ConnectResponse, config: &TunnelConfig) {
+    let local_addr = match response.tunnel_protocol {
+        TunnelProtocol::Http => format!("http://{}:{}", config.local_host, config.local_port),
+        TunnelProtocol::Tcp => format!("tcp://{}:{}", config.local_host, config.local_port),
+    };
+    display_tunnel_banner(response, &local_addr);
+}
+
+fn display_tunnel_banner(response: &ConnectResponse, local_addr: &str) {
+    let display_url = compute_display_url(response);
     println!();
     println!("  ╔══════════════════════════════════════════════════════════════╗");
     println!("  ║                    Tunnel Established!                       ║");
     println!("  ╠══════════════════════════════════════════════════════════════╣");
-    println!("  ║  Public URL: {:<47} ║", response.public_url());
+    println!("  ║  Public URL: {:<47} ║", display_url);
     println!("  ║  Subdomain:  {:<47} ║", response.assigned_subdomain);
     println!(
         "  ║  Protocol:   {:<47} ║",
         format!("{:?}", response.tunnel_protocol)
     );
-    match response.tunnel_protocol {
-        TunnelProtocol::Http => println!(
-            "  ║  Forwarding: {:<47} ║",
-            format!("http://{}:{}", config.local_host, config.local_port)
-        ),
-        TunnelProtocol::Tcp => println!(
-            "  ║  Forwarding: {:<47} ║",
-            format!("tcp://{}:{}", config.local_host, config.local_port)
-        ),
+    println!("  ║  Forwarding: {:<47} ║", local_addr);
+    if let Some(ref alt) = response.alternate_url {
+        println!("  ║  Alt URL:    {:<47} ║", alt);
     }
+    println!("  ║  Tunnel ID:  {:<47} ║", response.tunnel_id);
     println!("  ╚══════════════════════════════════════════════════════════════╝");
     println!();
 
     if let Some(msg) = &response.message {
         println!("  note: {msg}");
+        println!();
+    }
+
+    info!(
+        public_url = %display_url,
+        alternate_url = ?response.alternate_url,
+        tunnel_id = %response.tunnel_id,
+        subdomain = %response.assigned_subdomain,
+        "Tunnel ready"
+    );
+}
+
+fn compute_display_url(response: &ConnectResponse) -> String {
+    if !response.public_url.is_empty() {
+        return response.public_url.clone();
+    }
+
+    let scheme = if response.public_scheme.is_empty() {
+        match response.tunnel_protocol {
+            TunnelProtocol::Http => "http",
+            TunnelProtocol::Tcp => "tcp",
+        }
+    } else {
+        response.public_scheme.as_str()
+    };
+
+    let port_suffix = match (scheme, response.public_port) {
+        ("https", Some(port)) if port != 443 => format!(":{port}"),
+        ("http", Some(port)) if port != 80 => format!(":{port}"),
+        ("tcp", Some(port)) => format!(":{port}"),
+        _ => String::new(),
+    };
+
+    format!(
+        "{}://{}.{}{}",
+        scheme, response.assigned_subdomain, response.domain, port_suffix
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use expose_common::types::RoutingMode;
+
+    #[test]
+    fn test_compute_display_url_prefers_server_value() {
+        let resp = ConnectResponse::build(
+            Uuid::new_v4(),
+            "demo".into(),
+            "example.com".into(),
+            TunnelProtocol::Http,
+            false,
+            Some(8080),
+            &RoutingMode::Path,
+            "/t",
+            expose_common::types::RequestLimits::default(),
+        );
+        assert_eq!(compute_display_url(&resp), resp.public_url);
+    }
+
+    #[test]
+    fn test_compute_display_url_fallbacks_when_empty() {
+        let mut resp = ConnectResponse::build(
+            Uuid::new_v4(),
+            "demo".into(),
+            "example.com".into(),
+            TunnelProtocol::Http,
+            false,
+            Some(8080),
+            &RoutingMode::Subdomain,
+            "/t",
+            expose_common::types::RequestLimits::default(),
+        );
+        resp.public_url.clear();
+        resp.public_scheme.clear();
+        assert_eq!(compute_display_url(&resp), "http://demo.example.com:8080");
     }
 }
 
@@ -250,11 +330,6 @@ async fn run_single_session(
         println!("Reconnected successfully!");
     }
     print_tunnel_banner(&connect_ack, config);
-    info!(
-        tunnel_id = %connect_ack.tunnel_id,
-        public_url = %connect_ack.public_url(),
-        "Tunnel ready"
-    );
 
     let http_proxy = if connect_ack.tunnel_protocol == TunnelProtocol::Http {
         Some(Arc::new(LocalProxy::new(
@@ -683,7 +758,7 @@ impl MessageExt for Message {
 }
 
 #[cfg(test)]
-mod tests {
+mod backoff_tests {
     use super::ReconnectBackoff;
 
     #[test]

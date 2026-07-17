@@ -29,16 +29,26 @@ impl<'a> RequestStreamer<'a> {
     pub async fn stream(
         &self,
         parts: &Parts,
+        body: Body,
+        content_length: Option<u64>,
+    ) -> Result<(), ExposeError> {
+        self.stream_with_path(parts, body, content_length, None)
+            .await
+    }
+
+    pub async fn stream_with_path(
+        &self,
+        parts: &Parts,
         mut body: Body,
         content_length: Option<u64>,
+        forwarded_path: Option<&str>,
     ) -> Result<(), ExposeError> {
         let start = Message::HttpRequestStart {
             id: self.request_id,
             method: parts.method.to_string(),
-            path: parts
-                .uri
-                .path_and_query()
-                .map(|pq| pq.as_str().to_string())
+            path: forwarded_path
+                .map(|p| p.to_string())
+                .or_else(|| parts.uri.path_and_query().map(|pq| pq.as_str().to_string()))
                 .unwrap_or_else(|| parts.uri.path().to_string()),
             headers: parts
                 .headers

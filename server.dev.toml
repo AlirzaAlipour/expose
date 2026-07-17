@@ -1,5 +1,10 @@
 bind_address = "127.0.0.1:6200"
 domain = "dev.localhost"
+# Routing mode: "path" (default), "subdomain", or "both"
+routing_mode = "path"
+# Path prefix for path-based routing
+path_prefix = "/t"
+# Public-facing port (set if behind a reverse proxy)
 public_port = 6200
 rate_limit_requests_per_minute = 120
 rate_limit_burst_size = 20

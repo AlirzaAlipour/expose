@@ -184,14 +184,8 @@ async fn run_single_session(
         }
         match wait_for_connect_ack(&mut reader, &tx).await {
             Ok(ack) => {
-                let context = manager.register_context(&ack, tunnel_cfg);
+                manager.register_context(&ack, tunnel_cfg);
                 print_tunnel_banner(&ack, tunnel_cfg);
-                info!(
-                    tunnel_id = %ack.tunnel_id,
-                    subdomain = %context.subdomain,
-                    protocol = ?context.protocol,
-                    "Tunnel ready"
-                );
             }
             Err(err) => {
                 return SessionResult::Reconnect {
@@ -320,7 +314,6 @@ async fn wait_for_connect_ack(
 
 struct TunnelContext {
     tunnel_id: Uuid,
-    subdomain: String,
     protocol: TunnelProtocol,
     http_proxy: Option<Arc<LocalProxy>>,
     tcp_proxy: Option<Arc<TcpLocalProxy>>,
@@ -367,7 +360,6 @@ impl MultiTunnelManager {
 
         let context = Arc::new(TunnelContext {
             tunnel_id: ack.tunnel_id,
-            subdomain: ack.assigned_subdomain.clone(),
             protocol: ack.tunnel_protocol,
             http_proxy,
             tcp_proxy,

@@ -175,10 +175,11 @@ mod tests {
         let state = build_state(config);
         let tunnel = register_tunnel(&state, "alpha");
         for _ in 0..8 {
-            let _ = state
+            let pending = state
                 .manager
                 .register_pending_request(&tunnel.id, Uuid::new_v4(), None)
                 .unwrap();
+            drop(pending);
         }
 
         let health = HealthResponse::compute(&state);

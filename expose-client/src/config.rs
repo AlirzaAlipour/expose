@@ -149,25 +149,29 @@ pub fn load_multi_runtime_config(path: &Path) -> Result<MultiRuntimeConfig> {
     let reconnect_base_delay_ms = file_cfg.reconnect_base_delay_ms.unwrap_or(1_000);
 
     let mut tunnels = Vec::new();
-    for entry in file_cfg.tunnels.iter() {
-        let mut cfg = TunnelConfig::default();
-        cfg.server_url = server_url.clone();
-        cfg.api_key = file_cfg.api_key.clone();
-        cfg.protocol = entry.protocol.unwrap_or(TunnelProtocol::Http);
-        cfg.local_host = entry
-            .local_host
-            .clone()
-            .unwrap_or_else(|| "127.0.0.1".into());
-        cfg.local_port = entry.local_port;
-
-        if let Some(subdomain) = entry.subdomain.as_ref() {
-            let sanitized = utils::sanitize_subdomain(subdomain).ok_or_else(|| {
+    for entry in &file_cfg.tunnels {
+        let subdomain = if let Some(raw) = entry.subdomain.as_ref() {
+            Some(utils::sanitize_subdomain(raw).ok_or_else(|| {
                 validation_error(format!(
-                    "Subdomain '{subdomain}' is invalid. Use lowercase letters, numbers, and hyphens."
+                    "Subdomain '{raw}' is invalid. Use lowercase letters, numbers, and hyphens."
                 ))
-            })?;
-            cfg.subdomain = Some(sanitized);
-        }
+            })?)
+        } else {
+            None
+        };
+
+        let cfg = TunnelConfig {
+            protocol: entry.protocol.unwrap_or(TunnelProtocol::Http),
+            local_host: entry
+                .local_host
+                .clone()
+                .unwrap_or_else(|| "127.0.0.1".into()),
+            local_port: entry.local_port,
+            subdomain,
+            server_url: server_url.clone(),
+            api_key: file_cfg.api_key.clone(),
+            ..TunnelConfig::default()
+        };
 
         tunnels.push(cfg);
     }

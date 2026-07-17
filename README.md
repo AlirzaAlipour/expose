@@ -18,15 +18,32 @@ cargo test --workspace
 
 ## Quick Start
 
-1. **Start the relay (HTTP only):**
-   ```bash
-   cargo run -p expose-server -- --config server.toml
-   ```
-2. **Open a tunnel from your development machine:**
-   ```bash
-   cargo run -p expose-client -- http 8080 --subdomain demo
-   ```
-3. Share the printed public URL (e.g., `http://demo.tunnel.example.com` or `https://demo.tunnel.example.com`) with collaborators.
+### Server
+
+```bash
+cargo run -p expose-server -- --config server.dev.toml
+```
+
+Default configuration uses **path-based routing** — no wildcard DNS needed. Tunnels are accessed at `http://your-domain/t/{tunnel-name}/...`.
+
+### Client
+
+```bash
+cargo run -p expose-client -- http 8080 \
+  --server ws://your-server:8080/connect \
+  --api-key your-key \
+  --subdomain demo
+```
+
+### Test
+
+```bash
+# Path-based routing (default):
+curl http://your-server:8080/t/demo/
+
+# Subdomain routing (if enabled):
+curl -H 'Host: demo.your-domain' http://your-server:8080/
+```
 
 ### TLS / HTTPS Configuration
 
@@ -103,6 +120,17 @@ expose-client --server wss://relay.example.com --api-key $EXPOSE_KEY \
 ```
 
 Each TCP tunnel receives a dedicated listener on the relay. Incoming connections are multiplexed through the websocket using the `TcpConnect`/`TcpData`/`TcpClose` frames and mirrored to your local host/port.
+
+### Deploying on Darkube (Docker)
+
+Build the Docker image (root `Dockerfile`) and push it to your PaaS registry:
+
+```bash
+docker build -t expose-server:latest .
+docker run --rm -p 8080:8080 expose-server:latest
+```
+
+The container runs `expose-server --config /app/darkube.toml`, where `darkube.toml` is a production-ready path-routing config that targets `https://expose.darkube.app/`. Update the `api_keys`, `admin.token`, and any domain-specific values before deploying the image to Darkube.
 
 ### Multi-Tunnel Configurations
 

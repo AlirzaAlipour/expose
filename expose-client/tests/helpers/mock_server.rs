@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use expose_common::protocol::{ConnectResponse, Message};
-use expose_common::types::TunnelProtocol;
+use expose_common::types::{RoutingMode, TunnelProtocol};
 use futures_util::{SinkExt, StreamExt};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -220,7 +220,7 @@ async fn handle_connection(
         }
         _ => {
             if let Message::Connect(request) = connect {
-                let mut ack = ConnectResponse::new(
+                let mut ack = ConnectResponse::build(
                     Uuid::new_v4(),
                     request
                         .desired_subdomain
@@ -230,6 +230,8 @@ async fn handle_connection(
                     TunnelProtocol::Http,
                     false,
                     Some(8080),
+                    &RoutingMode::Path,
+                    "/t",
                     Default::default(),
                 );
                 ack.message = Some("connected".into());

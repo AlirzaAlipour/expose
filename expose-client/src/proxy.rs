@@ -30,6 +30,8 @@ struct StreamingRequest {
     body: BytesMut,
 }
 
+type PendingRequestParts = (String, String, Vec<(String, String)>, Bytes);
+
 impl LocalProxy {
     /// Build a new proxy using the provided host and port.
     pub fn new(host: impl Into<String>, port: u16) -> Self {
@@ -89,10 +91,7 @@ impl LocalProxy {
         Ok(())
     }
 
-    pub fn finish_streaming_request(
-        &self,
-        id: &Uuid,
-    ) -> Option<(String, String, Vec<(String, String)>, Bytes)> {
+    pub fn finish_streaming_request(&self, id: &Uuid) -> Option<PendingRequestParts> {
         self.pending_streams.remove(id).map(|(_, request)| {
             (
                 request.method,

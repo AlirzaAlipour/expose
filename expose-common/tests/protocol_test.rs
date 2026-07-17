@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use expose_common::protocol::Message;
-use expose_common::types::TunnelProtocol;
+use expose_common::types::{RoutingMode, TunnelProtocol};
 use expose_common::utils;
 use expose_common::{ConnectRequest, ConnectResponse, RequestLimits};
 use uuid::Uuid;
@@ -10,13 +10,15 @@ fn message_roundtrip_all_variants() {
     let id = Uuid::new_v4();
     let messages = vec![
         Message::Connect(ConnectRequest::new(None, None, TunnelProtocol::Http, "1.0")),
-        Message::ConnectAck(ConnectResponse::new(
+        Message::ConnectAck(ConnectResponse::build(
             id,
             "alpha".into(),
             "test.local".into(),
             TunnelProtocol::Http,
             true,
-            None,
+            Some(443),
+            &RoutingMode::Path,
+            "/t",
             RequestLimits::default(),
         )),
         Message::HttpRequest {
