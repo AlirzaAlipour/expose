@@ -1,7 +1,7 @@
 //! Server configuration loading utilities and security primitives.
 
 use crate::error::{ExposeError, Result};
-use expose_common::types::{RequestLimits, RoutingMode, TcpTuningConfig};
+use expose_common::types::{RequestLimits, TcpTuningConfig};
 use serde::de::Error as DeError;
 use serde::{Deserialize, Deserializer};
 use std::fs;
@@ -282,13 +282,6 @@ pub struct ServerConfig {
     pub tls_key_path: Option<PathBuf>,
     pub admin_bind: Option<String>,
     pub domain: String,
-    pub public_port: Option<u16>,
-    /// How incoming requests are routed to tunnels.
-    #[serde(default)]
-    pub routing_mode: RoutingMode,
-    /// URL path prefix for path-based routing.
-    #[serde(default = "default_path_prefix")]
-    pub path_prefix: String,
     pub rate_limit_requests_per_minute: u32,
     pub rate_limit_burst_size: u32,
     #[serde(deserialize_with = "deserialize_api_keys")]
@@ -316,9 +309,6 @@ impl Default for ServerConfig {
             tls_key_path: None,
             admin_bind: Some("127.0.0.1:9090".into()),
             domain: "tunnel.localhost".into(),
-            public_port: None,
-            routing_mode: RoutingMode::Path,
-            path_prefix: default_path_prefix(),
             rate_limit_requests_per_minute: 120,
             rate_limit_burst_size: 10,
             api_keys: Vec::new(),
@@ -396,8 +386,6 @@ impl ServerConfig {
         cfg.admin
             .validate(is_production)
             .map_err(ExposeError::from)?;
-
-        cfg.validate_routing()?;
 
         Ok(cfg)
     }
@@ -487,10 +475,6 @@ impl ServerConfig {
 
     /// Returns the public-facing port for URL construction.
     pub fn effective_public_port(&self) -> Option<u16> {
-        if let Some(port) = self.public_port {
-            return Some(port);
-        }
-
         fn parse(addr: Option<&str>) -> Option<u16> {
             addr?.parse::<SocketAddr>().ok().map(|socket| socket.port())
         }
@@ -501,51 +485,6 @@ impl ServerConfig {
             parse(self.http_bind_address())
         }
     }
-
-    #[allow(dead_code)]
-    pub fn advertised_public_port(&self) -> Option<u16> {
-        self.effective_public_port()
-    }
-
-    fn validate_routing(&self) -> Result<()> {
-        if self.routing_mode.supports_path() {
-            if !self.path_prefix.starts_with('/') {
-                return Err(ExposeError::Config(ConfigError::Validation(
-                    "path_prefix must start with '/'".into(),
-                )));
-            }
-            if self.path_prefix.len() < 2 {
-                return Err(ExposeError::Config(ConfigError::Validation(
-                    "path_prefix must be at least 2 characters (e.g., '/t')".into(),
-                )));
-            }
-            if self.path_prefix.ends_with('/') {
-                return Err(ExposeError::Config(ConfigError::Validation(
-                    "path_prefix must not end with '/'".into(),
-                )));
-            }
-            let prefix_body = &self.path_prefix[1..];
-            if !prefix_body
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-            {
-                return Err(ExposeError::Config(ConfigError::Validation(
-                    "path_prefix may only contain alphanumerics, hyphens, and underscores after '/'".into(),
-                )));
-            }
-        }
-
-        tracing::info!(
-            routing_mode = %self.routing_mode,
-            path_prefix = %self.path_prefix,
-            "Routing configuration loaded"
-        );
-        Ok(())
-    }
-}
-
-fn default_path_prefix() -> String {
-    "/t".to_string()
 }
 
 /// Server resource limits configured via `[limits]`.
@@ -684,92 +623,12 @@ mod tests {
     }
 
     #[test]
-    fn test_server_config_default_routing_mode_is_path() {
-        let config = ServerConfig::default();
-        assert_eq!(config.routing_mode, RoutingMode::Path);
-    }
-
-    #[test]
-    fn test_server_config_default_path_prefix() {
-        let config = ServerConfig::default();
-        assert_eq!(config.path_prefix, "/t");
-    }
-
-    #[test]
-    fn test_server_config_path_prefix_validation_missing_slash() {
-        let config = ServerConfig {
-            path_prefix: "t".into(),
-            routing_mode: RoutingMode::Path,
-            ..Default::default()
-        };
-        assert!(config.validate_routing().is_err());
-    }
-
-    #[test]
-    fn test_server_config_path_prefix_validation_trailing_slash() {
-        let config = ServerConfig {
-            path_prefix: "/t/".into(),
-            routing_mode: RoutingMode::Path,
-            ..Default::default()
-        };
-        assert!(config.validate_routing().is_err());
-    }
-
-    #[test]
-    fn test_server_config_path_prefix_valid() {
-        let config = ServerConfig {
-            path_prefix: "/tunnel".into(),
-            routing_mode: RoutingMode::Path,
-            ..Default::default()
-        };
-        assert!(config.validate_routing().is_ok());
-    }
-
-    #[test]
-    fn test_effective_public_port_explicit() {
-        let config = ServerConfig {
-            public_port: Some(443),
-            ..Default::default()
-        };
-        assert_eq!(config.effective_public_port(), Some(443));
-    }
-
-    #[test]
     fn test_effective_public_port_from_bind_address() {
         let config = ServerConfig {
             bind_address: Some("0.0.0.0:8080".into()),
-            public_port: None,
             tls_enabled: false,
             ..Default::default()
         };
         assert_eq!(config.effective_public_port(), Some(8080));
-    }
-
-    #[test]
-    fn test_config_deserializes_routing_mode_from_toml() {
-        let toml_str = r#"
-            bind_address = "0.0.0.0:8080"
-            domain = "example.com"
-            tls_enabled = false
-            routing_mode = "both"
-            path_prefix = "/tunnel"
-        "#;
-
-        let config: ServerConfig = toml::from_str(toml_str).unwrap();
-        assert_eq!(config.routing_mode, RoutingMode::Both);
-        assert_eq!(config.path_prefix, "/tunnel");
-    }
-
-    #[test]
-    fn test_config_defaults_when_routing_fields_absent() {
-        let toml_str = r#"
-            bind_address = "0.0.0.0:8080"
-            domain = "example.com"
-            tls_enabled = false
-        "#;
-
-        let config: ServerConfig = toml::from_str(toml_str).unwrap();
-        assert_eq!(config.routing_mode, RoutingMode::Path);
-        assert_eq!(config.path_prefix, "/t");
     }
 }

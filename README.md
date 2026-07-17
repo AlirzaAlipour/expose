@@ -24,7 +24,7 @@ cargo test --workspace
 cargo run -p expose-server -- --config server.dev.toml
 ```
 
-Default configuration uses **path-based routing** — no wildcard DNS needed. Tunnels are accessed at `http://your-domain/t/{tunnel-name}/...`.
+Expose now uses **subdomain routing** exclusively. Point a wildcard DNS record (e.g. `*.dev.localhost` via `/etc/hosts`, `sslip.io`, or `nip.io`) at the server so requests for `demo.your-domain` reach the relay.
 
 ### Client
 
@@ -38,10 +38,6 @@ cargo run -p expose-client -- http 8080 \
 ### Test
 
 ```bash
-# Path-based routing (default):
-curl http://your-server:8080/t/demo/
-
-# Subdomain routing (if enabled):
 curl -H 'Host: demo.your-domain' http://your-server:8080/
 ```
 
@@ -53,12 +49,11 @@ Enable HTTPS by supplying certificate paths in the server config (TOML):
 bind_address = "0.0.0.0:8080"        # Optional plain HTTP listener
 https_bind_address = "0.0.0.0:8443"  # Required when tls_enabled = true
 tls_enabled = true
-tls_cert_path = "/etc/expose/cert.pem"
+tls_cert_path = "/etc/expose/cert.pem"   # Wildcard cert for *.tunnel.example.com
 tls_key_path = "/etc/expose/key.pem"
 
 # Other common settings
-domain = "tunnel.example.com"
-public_port = 443
+domain = "tunnel.example.com"        # Used for ConnectAck URLs
 rate_limit_requests_per_minute = 60
 rate_limit_burst_size = 10
 

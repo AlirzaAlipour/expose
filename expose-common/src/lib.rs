@@ -12,6 +12,4 @@ pub use protocol::{
     decode_message, encode_message, major_version, minor_version, versions_compatible,
     ConnectRequest, ConnectResponse, ErrorCode, Message, VersionCheckResult, PROTOCOL_VERSION,
 };
-pub use types::{
-    RequestLimits, RoutingMode, TcpTuningConfig, TunnelAssignment, TunnelConfig, TunnelProtocol,
-};
+pub use types::{RequestLimits, TcpTuningConfig, TunnelAssignment, TunnelConfig, TunnelProtocol};

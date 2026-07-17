@@ -1,8 +1,5 @@
 bind_address = "0.0.0.0:8080"
-domain = "darkube.app"
-routing_mode = "both"
-path_prefix = "/t"
-public_port = 443
+domain = "expose.darkube.app"
 rate_limit_requests_per_minute = 120
 rate_limit_burst_size = 20
 api_keys = ["darkube-demo-key-change-me"]
@@ -25,8 +22,8 @@ bind_address = "127.0.0.1:9900"
 bind_host = "0.0.0.0"
 
 [pending_requests]
-max_per_tunnel = 100
-max_global = 1000
+max_per_tunnel = 10000
+max_global = 10000
 sweep_interval_ms = 500
 default_timeout_secs = 15
 

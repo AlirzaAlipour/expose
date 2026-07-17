@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use expose_common::protocol::Message;
-use expose_common::types::{RoutingMode, TunnelProtocol};
+use expose_common::types::TunnelProtocol;
 use expose_common::utils;
 use expose_common::{ConnectRequest, ConnectResponse, RequestLimits};
 use uuid::Uuid;
@@ -17,8 +17,6 @@ fn message_roundtrip_all_variants() {
             TunnelProtocol::Http,
             true,
             Some(443),
-            &RoutingMode::Path,
-            "/t",
             RequestLimits::default(),
         )),
         Message::HttpRequest {

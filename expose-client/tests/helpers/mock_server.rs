@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use expose_common::protocol::{ConnectResponse, Message};
-use expose_common::types::{RoutingMode, TunnelProtocol};
+use expose_common::types::TunnelProtocol;
 use futures_util::{SinkExt, StreamExt};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -230,8 +230,6 @@ async fn handle_connection(
                     TunnelProtocol::Http,
                     false,
                     Some(8080),
-                    &RoutingMode::Path,
-                    "/t",
                     Default::default(),
                 );
                 ack.message = Some("connected".into());

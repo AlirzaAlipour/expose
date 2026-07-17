@@ -8,24 +8,20 @@ use crate::metrics::ServerMetrics;
 use crate::middleware;
 use crate::platform;
 use crate::proxy;
-use crate::proxy::path_router::path_proxy_request;
 use crate::tcp_proxy::TcpTunnelRegistry;
 use crate::tcp_tuning;
 use crate::tls;
 use crate::tunnel_manager::{OutgoingFrame, TunnelManager};
-use axum::body::Body;
 use axum::extract::ws::{Message as WsMessage, WebSocket, WebSocketUpgrade};
 use axum::extract::Extension;
-use axum::http::{Request, StatusCode};
-use axum::response::{IntoResponse, Response};
-use axum::routing::{any, get};
-use axum::{Json, Router};
+use axum::response::IntoResponse;
+use axum::routing::get;
+use axum::Router;
 use expose_common::error::ConfigError;
 use expose_common::protocol::{
     ConnectResponse, ErrorCode, Message, VersionCheckResult, PROTOCOL_VERSION,
 };
 use futures_util::{SinkExt, StreamExt};
-use serde_json::json;
 use socket2::SockRef;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -176,33 +172,13 @@ impl Server {
     }
 
     fn build_router(&self) -> Router {
-        let config = self.state.config.clone();
-        let mut public = Router::new()
+        Router::new()
             .route("/healthz", get(health::health_check))
             .route("/readyz", get(health::readiness_check))
             .route("/livez", get(health::liveness_check))
-            .route("/connect", get(tunnel_entry));
-
-        if config.routing_mode.supports_path() {
-            let prefix = config.path_prefix.clone();
-            info!(%prefix, "Enabling path-based tunnel routing");
-            public = public
-                .route(&format!("{}/:tunnel_name", prefix), any(path_proxy_request))
-                .route(
-                    &format!("{}/:tunnel_name/*rest", prefix),
-                    any(path_proxy_request),
-                );
-        }
-
-        if config.routing_mode.supports_subdomain() {
-            info!("Enabling subdomain-based tunnel routing");
-            public = public.fallback(proxy::subdomain_proxy_request);
-        } else {
-            public = public.fallback(path_routing_fallback);
-        }
-
-        public
+            .route("/connect", get(tunnel_entry))
             .nest("/admin", admin::router(self.state.clone()))
+            .fallback(proxy::subdomain_proxy_request)
             .layer(middleware::rate_limit::layer({
                 let limit = self.state.config.limits.max_tunnels;
                 if limit == 0 {
@@ -347,8 +323,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) -> Result<()> {
         connect_request.tunnel_protocol,
         state.config.tls_enabled,
         public_port,
-        &state.config.routing_mode,
-        &state.config.path_prefix,
         state.manager.limits(),
     );
     ack.message = Some("tunnel connected".into());
@@ -456,38 +430,4 @@ async fn wait_for_connect(
     Err(ExposeError::Network(other_io_error(
         "client disconnected before sending Connect",
     )))
-}
-
-async fn path_routing_fallback(
-    Extension(state): Extension<Arc<AppState>>,
-    _request: Request<Body>,
-) -> impl IntoResponse {
-    path_routing_hint_response(&state.config)
-}
-
-/// Builds a helpful 404 response describing path-based routing.
-pub(crate) fn path_routing_hint_response(config: &ServerConfig) -> Response {
-    let scheme = if config.tls_enabled { "https" } else { "http" };
-    let port_suffix = match config.effective_public_port() {
-        Some(port)
-            if (config.tls_enabled && port != 443) || (!config.tls_enabled && port != 80) =>
-        {
-            format!(":{port}")
-        }
-        _ => String::new(),
-    };
-    let hint = format!(
-        "Tunnels are accessed via path routing: {}://{}{}{}/{{tunnel_name}}/...",
-        scheme, config.domain, port_suffix, config.path_prefix
-    );
-
-    (
-        StatusCode::NOT_FOUND,
-        Json(json!({
-            "error": "not found",
-            "hint": hint,
-            "routing_mode": config.routing_mode.to_string()
-        })),
-    )
-        .into_response()
 }

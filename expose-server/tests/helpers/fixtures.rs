@@ -1,4 +1,3 @@
-use expose_common::types::RoutingMode;
 use expose_server::config::ServerConfig;
 use std::net::TcpListener;
 
@@ -9,7 +8,6 @@ pub fn base_config() -> ServerConfig {
     config.https_bind_address = None;
     config.tls_enabled = false;
     config.limits.max_tunnels = 32;
-    config.routing_mode = RoutingMode::Both;
     config
 }
 

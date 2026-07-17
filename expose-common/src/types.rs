@@ -29,49 +29,6 @@ impl fmt::Display for TunnelProtocol {
     }
 }
 
-/// Determines how the server routes incoming public HTTP requests to tunnels.
-///
-/// Defaults to [`RoutingMode::Path`] so new deployments only need a single DNS
-/// record and certificate.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum RoutingMode {
-    /// Path-based routing: `{domain}/t/{name}/...`.
-    Path,
-    /// Subdomain-based routing: `{name}.{domain}/...`.
-    Subdomain,
-    /// Both routing methods active simultaneously.
-    Both,
-}
-
-impl Default for RoutingMode {
-    fn default() -> Self {
-        Self::Path
-    }
-}
-
-impl RoutingMode {
-    /// Returns true if subdomain-based routing is active.
-    pub fn supports_subdomain(&self) -> bool {
-        matches!(self, Self::Subdomain | Self::Both)
-    }
-
-    /// Returns true if path-based routing is active.
-    pub fn supports_path(&self) -> bool {
-        matches!(self, Self::Path | Self::Both)
-    }
-}
-
-impl fmt::Display for RoutingMode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Path => write!(f, "path"),
-            Self::Subdomain => write!(f, "subdomain"),
-            Self::Both => write!(f, "both"),
-        }
-    }
-}
-
 /// Configuration required for establishing a tunnel from the client.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TunnelConfig {
@@ -203,51 +160,5 @@ mod tests {
             protocol: TunnelProtocol::Http,
         };
         assert_eq!(assignment.public_url(), "https://alpha.tunnel.example.com");
-    }
-
-    #[test]
-    fn test_routing_mode_default_is_path() {
-        assert_eq!(RoutingMode::default(), RoutingMode::Path);
-    }
-
-    #[test]
-    fn test_routing_mode_supports_subdomain() {
-        assert!(!RoutingMode::Path.supports_subdomain());
-        assert!(RoutingMode::Subdomain.supports_subdomain());
-        assert!(RoutingMode::Both.supports_subdomain());
-    }
-
-    #[test]
-    fn test_routing_mode_supports_path() {
-        assert!(RoutingMode::Path.supports_path());
-        assert!(!RoutingMode::Subdomain.supports_path());
-        assert!(RoutingMode::Both.supports_path());
-    }
-
-    #[test]
-    fn test_routing_mode_serde_roundtrip() {
-        let modes = vec![RoutingMode::Path, RoutingMode::Subdomain, RoutingMode::Both];
-        for mode in modes {
-            let serialized = serde_json::to_string(&mode).unwrap();
-            let deserialized: RoutingMode = serde_json::from_str(&serialized).unwrap();
-            assert_eq!(mode, deserialized);
-        }
-    }
-
-    #[test]
-    fn test_routing_mode_deserializes_from_lowercase_strings() {
-        let path: RoutingMode = serde_json::from_str("\"path\"").unwrap();
-        assert_eq!(path, RoutingMode::Path);
-        let sub: RoutingMode = serde_json::from_str("\"subdomain\"").unwrap();
-        assert_eq!(sub, RoutingMode::Subdomain);
-        let both: RoutingMode = serde_json::from_str("\"both\"").unwrap();
-        assert_eq!(both, RoutingMode::Both);
-    }
-
-    #[test]
-    fn test_routing_mode_display() {
-        assert_eq!(RoutingMode::Path.to_string(), "path");
-        assert_eq!(RoutingMode::Subdomain.to_string(), "subdomain");
-        assert_eq!(RoutingMode::Both.to_string(), "both");
     }
 }

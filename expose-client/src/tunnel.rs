@@ -111,9 +111,6 @@ fn display_tunnel_banner(response: &ConnectResponse, local_addr: &str) {
         format!("{:?}", response.tunnel_protocol)
     );
     println!("  ║  Forwarding: {:<47} ║", local_addr);
-    if let Some(ref alt) = response.alternate_url {
-        println!("  ║  Alt URL:    {:<47} ║", alt);
-    }
     println!("  ║  Tunnel ID:  {:<47} ║", response.tunnel_id);
     println!("  ╚══════════════════════════════════════════════════════════════╝");
     println!();
@@ -125,7 +122,6 @@ fn display_tunnel_banner(response: &ConnectResponse, local_addr: &str) {
 
     info!(
         public_url = %display_url,
-        alternate_url = ?response.alternate_url,
         tunnel_id = %response.tunnel_id,
         subdomain = %response.assigned_subdomain,
         "Tunnel ready"
@@ -162,8 +158,6 @@ fn compute_display_url(response: &ConnectResponse) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use expose_common::types::RoutingMode;
-
     #[test]
     fn test_compute_display_url_prefers_server_value() {
         let resp = ConnectResponse::build(
@@ -173,8 +167,6 @@ mod tests {
             TunnelProtocol::Http,
             false,
             Some(8080),
-            &RoutingMode::Path,
-            "/t",
             expose_common::types::RequestLimits::default(),
         );
         assert_eq!(compute_display_url(&resp), resp.public_url);
@@ -189,8 +181,6 @@ mod tests {
             TunnelProtocol::Http,
             false,
             Some(8080),
-            &RoutingMode::Subdomain,
-            "/t",
             expose_common::types::RequestLimits::default(),
         );
         resp.public_url.clear();

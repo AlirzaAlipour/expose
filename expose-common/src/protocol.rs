@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::error::{EncodingError, Result};
-use crate::types::{RequestLimits, RoutingMode, TunnelProtocol};
+use crate::types::{RequestLimits, TunnelProtocol};
 use crate::utils;
 
 /// Current protocol version (MAJOR * 100 + MINOR).
@@ -154,14 +154,10 @@ pub struct ConnectResponse {
     /// Fully qualified public URL for display/logging.
     #[serde(default)]
     pub public_url: String,
-    /// Optional alternate URL when multiple routing modes are active.
-    #[serde(default)]
-    pub alternate_url: Option<String>,
 }
 
 impl ConnectResponse {
-    /// Constructs a response with computed public URLs for the chosen routing mode.
-    #[allow(clippy::too_many_arguments)]
+    /// Constructs a response with computed public URLs for subdomain routing.
     pub fn build(
         tunnel_id: Uuid,
         subdomain: String,
@@ -169,8 +165,6 @@ impl ConnectResponse {
         tunnel_protocol: TunnelProtocol,
         tls_enabled: bool,
         public_port: Option<u16>,
-        routing_mode: &RoutingMode,
-        path_prefix: &str,
         limits: RequestLimits,
     ) -> Self {
         let scheme = match tunnel_protocol {
@@ -205,24 +199,7 @@ impl ConnectResponse {
             TunnelProtocol::Tcp => public_port,
         };
 
-        let subdomain_url = format!("{scheme}://{}.{}{}", subdomain, domain, port_suffix);
-
-        let normalized_prefix = if path_prefix.starts_with('/') {
-            path_prefix.to_string()
-        } else {
-            format!("/{path_prefix}")
-        };
-        let path_url = format!(
-            "{scheme}://{}{}{}/{}",
-            domain, port_suffix, normalized_prefix, subdomain
-        );
-
-        let (public_url, alternate_url) = match (tunnel_protocol, routing_mode) {
-            (TunnelProtocol::Http, RoutingMode::Path) => (path_url, None),
-            (TunnelProtocol::Http, RoutingMode::Subdomain) => (subdomain_url.clone(), None),
-            (TunnelProtocol::Http, RoutingMode::Both) => (path_url, Some(subdomain_url.clone())),
-            (TunnelProtocol::Tcp, _) => (subdomain_url.clone(), None),
-        };
+        let public_url = format!("{scheme}://{}.{}{}", subdomain, domain, port_suffix);
 
         Self {
             protocol_version: PROTOCOL_VERSION,
@@ -235,7 +212,6 @@ impl ConnectResponse {
             public_scheme: scheme.to_string(),
             public_port: advertised_port,
             public_url,
-            alternate_url,
         }
     }
 
@@ -464,8 +440,6 @@ mod tests {
                 TunnelProtocol::Http,
                 true,
                 Some(443),
-                &RoutingMode::Path,
-                "/t",
                 RequestLimits::default(),
             )),
             Message::HttpRequest {
@@ -549,8 +523,6 @@ mod tests {
             TunnelProtocol::Http,
             false,
             None,
-            &RoutingMode::Subdomain,
-            "/t",
             RequestLimits::default(),
         );
 
@@ -567,8 +539,6 @@ mod tests {
             TunnelProtocol::Http,
             true,
             Some(443),
-            &RoutingMode::Subdomain,
-            "/t",
             RequestLimits::default(),
         );
 
@@ -585,117 +555,10 @@ mod tests {
             TunnelProtocol::Http,
             false,
             Some(8080),
-            &RoutingMode::Subdomain,
-            "/t",
             RequestLimits::default(),
         );
 
         assert_eq!(response.public_url, "http://demo.example.com:8080");
-    }
-
-    #[test]
-    fn test_connect_response_https_443_no_port_in_url() {
-        let response = ConnectResponse::build(
-            Uuid::new_v4(),
-            "demo".into(),
-            "example.com".into(),
-            TunnelProtocol::Http,
-            true,
-            Some(443),
-            &RoutingMode::Subdomain,
-            "/t",
-            RequestLimits::default(),
-        );
-
-        assert_eq!(response.public_url, "https://demo.example.com");
-    }
-
-    #[test]
-    fn test_connect_response_build_path_mode_http() {
-        let resp = ConnectResponse::build(
-            Uuid::nil(),
-            "demo".into(),
-            "tunnel.example.com".into(),
-            TunnelProtocol::Http,
-            false,
-            Some(8080),
-            &RoutingMode::Path,
-            "/t",
-            RequestLimits::default(),
-        );
-        assert_eq!(resp.public_url, "http://tunnel.example.com:8080/t/demo");
-        assert_eq!(resp.public_scheme, "http");
-        assert!(resp.alternate_url.is_none());
-    }
-
-    #[test]
-    fn test_connect_response_build_subdomain_mode_https() {
-        let resp = ConnectResponse::build(
-            Uuid::nil(),
-            "demo".into(),
-            "tunnel.example.com".into(),
-            TunnelProtocol::Http,
-            true,
-            None,
-            &RoutingMode::Subdomain,
-            "/t",
-            RequestLimits::default(),
-        );
-        assert_eq!(resp.public_url, "https://demo.tunnel.example.com");
-        assert_eq!(resp.public_scheme, "https");
-        assert!(resp.alternate_url.is_none());
-    }
-
-    #[test]
-    fn test_connect_response_build_both_mode() {
-        let resp = ConnectResponse::build(
-            Uuid::nil(),
-            "demo".into(),
-            "tunnel.example.com".into(),
-            TunnelProtocol::Http,
-            false,
-            Some(8080),
-            &RoutingMode::Both,
-            "/t",
-            RequestLimits::default(),
-        );
-        assert_eq!(resp.public_url, "http://tunnel.example.com:8080/t/demo");
-        assert_eq!(
-            resp.alternate_url,
-            Some("http://demo.tunnel.example.com:8080".into())
-        );
-    }
-
-    #[test]
-    fn test_connect_response_build_https_443_no_port_suffix() {
-        let resp = ConnectResponse::build(
-            Uuid::nil(),
-            "demo".into(),
-            "tunnel.example.com".into(),
-            TunnelProtocol::Http,
-            true,
-            Some(443),
-            &RoutingMode::Path,
-            "/t",
-            RequestLimits::default(),
-        );
-        assert_eq!(resp.public_url, "https://tunnel.example.com/t/demo");
-    }
-
-    #[test]
-    fn test_connect_response_build_http_80_no_port_suffix() {
-        let resp = ConnectResponse::build(
-            Uuid::nil(),
-            "demo".into(),
-            "tunnel.example.com".into(),
-            TunnelProtocol::Http,
-            false,
-            Some(80),
-            &RoutingMode::Path,
-            "/t",
-            RequestLimits::default(),
-        );
-        assert_eq!(resp.public_url, "http://tunnel.example.com/t/demo");
     }
 
     #[test]
@@ -713,7 +576,6 @@ mod tests {
         let resp: ConnectResponse = serde_json::from_value(old_json).unwrap();
         assert_eq!(resp.public_url, "");
         assert_eq!(resp.public_scheme, "");
-        assert!(resp.alternate_url.is_none());
     }
 
     #[test]
@@ -725,8 +587,6 @@ mod tests {
             TunnelProtocol::Http,
             false,
             Some(8080),
-            &RoutingMode::Path,
-            "/t",
             RequestLimits::default(),
         );
 
@@ -738,7 +598,7 @@ mod tests {
             Message::ConnectAck(decoded_resp) => {
                 assert_eq!(decoded_resp.public_url, resp.public_url);
                 assert_eq!(decoded_resp.public_scheme, resp.public_scheme);
-                assert_eq!(decoded_resp.alternate_url, resp.alternate_url);
+                assert_eq!(decoded_resp.public_port, resp.public_port);
             }
             other => panic!("expected ConnectAck, got {:?}", other),
         }
